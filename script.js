@@ -27,11 +27,19 @@
  *      open (an inline style, restored on close) and the optional
  *      <html data-country> mirror (CONFIG.setHtmlAttr).
  *
+ * WHAT ELSE IS IN HERE
+ *   A sticky TOP BAR (the .ldg-bar design from the two banner files), same
+ *   geo gate, same deadline, same countdown, its own dismissal. It is
+ *   injected as a position:fixed strip and pushes the whole page down
+ *   underneath it — <body>, any fixed/sticky header, and viewport-sized
+ *   sections — in one motion with its own slide-in. See section 9.
+ *
  * QA HELPERS (query string, no code changes needed)
  *   ?ldgeo=CA     force a country          e.g. /pricing/?ldgeo=CA
  *   ?ldgeo=GB     force a country with no banner (should show nothing)
- *   ?ldexit=1     open immediately, skip the exit trigger
- *   ?ldreset=1    clear the "already closed" flag and the cached country
+ *   ?ldexit=1     open the popup immediately, skip the exit trigger
+ *   ?ldbar=1      show the bar even if it was dismissed
+ *   ?ldreset=1    clear both dismissal flags and the cached country
  *
  * ARTWORK
  *   The two photos are inlined as base64 so this file is drop-in with zero
@@ -75,7 +83,46 @@
 
     // --- behaviour ---
     sessionKey: 'ldg_ld2026_exit_closed',
-    lockScroll: true
+    lockScroll: true,
+
+    /* --- sticky top bar --------------------------------------------------
+       The bar is injected as a position:fixed strip and the page is padded
+       down to make room for it, so it works even though this script runs
+       long after the page has rendered. See section 8 for the details. */
+    bar: {
+      enabled: true,
+
+      // Dismissal lasts this many hours (localStorage, not a cookie).
+      dismissKey: 'ldg_ld2026_bar_closed',
+      dismissHours: 24,
+
+      // Entry / exit animation. Set animMs to 0 to disable; visitors with
+      // prefers-reduced-motion get 0 automatically.
+      animMs: 420,
+      easing: 'cubic-bezier(.22,.61,.36,1)',
+
+      // Retract on scroll down, slide back in at the very top (v10 behaviour).
+      // Set to false for a bar that stays pinned no matter where you scroll.
+      hideOnScroll: true,
+      hideAtPx: 10,
+      showAtPx: 0,
+
+      zIndex: 2147482000,          // just under the exit popup
+
+      /* PUSH-DOWN
+         autoPush finds the elements that would otherwise end up underneath
+         the bar and offsets them in sync with the entry animation:
+           - <body> gets padding-top          (normal document flow)
+           - position:fixed / sticky headers pinned to top:0 get top:<h>
+           - <html> gets a --ldg-bar-h custom property, for 100vh heroes:
+                 .hero { min-height: calc(100vh - var(--ldg-bar-h, 0px)); }
+         Nothing has to be added to the page for this to work. If auto ever
+         guesses wrong on a given template, tag elements by hand with
+         promo-banner="push-down" — those are always offset as well. */
+      autoPush: true,
+      pushSelector: '[promo-banner="push-down"]',
+      cssVar: '--ldg-bar-h'
+    }
   };
 
   /* =====================================================================
@@ -282,6 +329,81 @@
 </div>`
   };
 
+
+  /* =====================================================================
+     3b · MARKUP — sticky top bar  (design lifted from the two banner files)
+     ===================================================================== */
+  var BAR = {
+    US: `<div class="ldg ldg-bar" id="ldgBar" data-ldg-country="US" role="region" aria-label="Labor Day offer">
+  <div class="ldg-bar__in">
+    <span class="ldg-bar__tag">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.6 6.6L21.5 9l-5 4.7 1.4 7L12 17.3 6.1 20.7l1.4-7L2.5 9l6.9-.4z"/></svg>
+      Labor Day Sale
+    </span>
+
+    <p class="ldg-bar__msg">
+      <strong>Save 50%</strong> on Professional and Ultimate yearly plans with the code
+      <span class="ldg-code">LD2026</span>. <a href="/terms/">T&amp;Cs apply</a>
+    </p>
+
+    <a class="ldg-bar__cta" href="/pricing/?coupon=LD2026">
+      <span>Get 50% off now</span>
+      <span class="ldg-bar__arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+      </span>
+    </a>
+
+    <div class="ldg-count" aria-label="Time left in this offer">
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="days">--</span><span class="ldg-count__lab">Days</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="hours">--</span><span class="ldg-count__lab">Hrs</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="minutes">--</span><span class="ldg-count__lab">Mins</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="seconds">--</span><span class="ldg-count__lab">Secs</span></div>
+    </div>
+  </div>
+
+  <button class="ldg-bar__close" type="button" data-ldg-dismiss="bar" aria-label="Dismiss offer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+</div>`,
+    CA: `<div class="ldg ldg-bar" id="ldgBar" data-ldg-country="CA" role="region" aria-label="Labour Day offer">
+  <div class="ldg-bar__in">
+    <span class="ldg-bar__tag">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M 12.00 1.50 L 13.60 5.20 L 16.00 4.40 L 15.20 8.00 L 19.60 6.60 L 18.00 9.80 L 22.20 10.40 L 17.70 13.10 L 19.80 16.40 L 13.70 15.20 L 13.70 21.20 L 10.30 21.20 L 10.30 15.20 L 4.20 16.40 L 6.30 13.10 L 1.80 10.40 L 6.00 9.80 L 4.40 6.60 L 8.80 8.00 L 8.00 4.40 L 10.40 5.20 L 12.00 1.50 Z"/></svg>
+      Labour Day Sale
+    </span>
+
+    <p class="ldg-bar__msg">
+      <strong>Save 50%</strong> on Professional and Ultimate yearly plans with the code
+      <span class="ldg-code">LD2026</span>. <a href="/terms/">T&amp;Cs apply</a>
+    </p>
+
+    <a class="ldg-bar__cta" href="/pricing/?coupon=LD2026">
+      <span>Get 50% off now</span>
+      <span class="ldg-bar__arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+      </span>
+    </a>
+
+    <div class="ldg-count" aria-label="Time left in this offer">
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="days">--</span><span class="ldg-count__lab">Days</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="hours">--</span><span class="ldg-count__lab">Hrs</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="minutes">--</span><span class="ldg-count__lab">Mins</span></div>
+      <span class="ldg-bar__sep" aria-hidden="true">:</span>
+      <div class="ldg-count__unit"><span class="ldg-count__num" data-unit="seconds">--</span><span class="ldg-count__lab">Secs</span></div>
+    </div>
+  </div>
+
+  <button class="ldg-bar__close" type="button" data-ldg-dismiss="bar" aria-label="Dismiss offer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+</div>`
+  };
+
   /* =====================================================================
      4 · STYLES
      ===================================================================== */
@@ -383,15 +505,15 @@
 
 /* ---------- scoped reset (keeps host-site CSS out of the popup) ----------
    :where() has zero specificity, so every component rule below still wins. */
-:where(#ldgExitModal, #ldgExitModal *){
+:where(#ldgExitModal, #ldgExitModal *, #ldgBar, #ldgBar *){
   box-sizing:border-box;margin:0;padding:0;min-width:0;border:0;outline:0;
   background:none;box-shadow:none;border-radius:0;float:none;
   font:inherit;color:inherit;text-align:left;text-decoration:none;
   text-transform:none;letter-spacing:inherit;line-height:inherit;
   list-style:none;vertical-align:baseline;
 }
-:where(#ldgExitModal button){cursor:pointer}
-:where(#ldgExitModal svg){display:block;flex:0 0 auto}
+:where(#ldgExitModal button, #ldgBar button){cursor:pointer}
+:where(#ldgExitModal svg, #ldgBar svg){display:block;flex:0 0 auto}
 #ldgExitModal .ldg-modal__fine a{text-decoration:underline}
 
 .ldg-strip__lab{display:flex;align-items:center;gap:10px;flex:0 0 auto;
@@ -456,6 +578,80 @@
 }
 
 
+/* ==========================================================================
+   STICKY TOP BAR
+   ========================================================================== */
+.ldg-bar{position:relative;width:100%;background:var(--ldg-yellow);color:var(--ldg-ink);
+  box-shadow:0 1px 0 rgba(20,19,19,.09),0 6px 18px rgba(20,19,19,.06)}
+.ldg-bar__in{
+  position:relative;max-width:1400px;margin:0 auto;min-height:64px;
+  display:flex;align-items:center;justify-content:center;gap:26px;
+  padding:8px 56px;flex-wrap:wrap;
+}
+.ldg-bar__tag{
+  display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;
+  padding:5px 12px 5px 10px;border-radius:999px;background:var(--ldg-ink);color:var(--ldg-yellow);
+  font-family:var(--ldg-display);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+}
+.ldg-bar__tag svg{width:9px;height:9px}
+.ldg-bar__msg{font-size:16px;line-height:1.35;margin:0}
+.ldg-bar__msg strong{font-size:18px;font-weight:700}
+.ldg-bar__msg .ldg-code{font-weight:700}
+.ldg-bar__msg a{color:var(--ldg-ink);opacity:.7;font-size:14px;text-decoration:underline}
+.ldg-bar__cta{display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;
+  font-size:16px;font-weight:600;color:var(--ldg-ink);text-decoration:none;white-space:nowrap}
+.ldg-bar__cta span{border-bottom:1.5px solid transparent;transition:border-color .15s}
+.ldg-bar__cta:hover span{border-bottom-color:var(--ldg-ink)}
+.ldg-bar__arrow{width:26px;height:26px;border-radius:50%;background:var(--ldg-ink);
+  display:grid;place-items:center;flex:0 0 auto;border-bottom:0 !important;
+  transition:transform .15s ease}
+.ldg-bar__cta:hover .ldg-bar__arrow{transform:translateX(3px)}
+.ldg-bar__arrow svg{width:13px;height:13px;color:var(--ldg-yellow)}
+.ldg-bar .ldg-count{gap:5px}
+.ldg-bar .ldg-count__unit{min-width:36px;padding:0;background:none}
+.ldg-bar .ldg-count__num{font-size:21px}
+.ldg-bar .ldg-count__lab{font-size:9px;margin-top:3px;color:rgba(20,19,19,.62)}
+.ldg-bar__sep{font-family:var(--ldg-display);font-size:19px;font-weight:700;opacity:.35;line-height:1.1}
+.ldg-bar__close{
+  position:absolute;top:50%;right:16px;transform:translateY(-50%);
+  width:26px;height:26px;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(20,19,19,.12);color:var(--ldg-ink);display:grid;place-items:center;
+  transition:background-color .15s ease;
+}
+.ldg-bar__close:hover{background:rgba(20,19,19,.22)}
+.ldg-bar__close svg{width:12px;height:12px}
+@media (max-width:1400px){
+  .ldg-bar__in{gap:18px;padding:8px 52px}
+  .ldg-bar__msg{font-size:15px}
+  .ldg-bar__msg strong{font-size:16px}
+  .ldg-bar__cta{font-size:15px}
+}
+@media (max-width:1240px){
+  .ldg-bar__in{gap:14px}
+  .ldg-bar__msg{font-size:14px}
+  .ldg-bar__msg strong{font-size:15px}
+  .ldg-bar .ldg-count__unit{min-width:30px}
+  .ldg-bar .ldg-count__num{font-size:18px}
+  .ldg-bar__sep{font-size:16px}
+}
+/* Below this the strip becomes two tidy rows — the message, then the CTA and
+   the clock side by side — rather than wrapping into three ragged ones. */
+@media (max-width:1199px){
+  .ldg-bar__in{gap:8px 22px;padding:11px 52px}
+  .ldg-bar__tag{display:none}
+  .ldg-bar__msg{flex:0 0 100%;text-align:center}
+}
+@media (max-width:620px){
+  .ldg-bar__in{gap:7px 14px;padding:11px 42px 11px 14px}
+  .ldg-bar .ldg-count{display:none}
+  .ldg-bar__msg{font-size:13.5px;line-height:1.45}
+  .ldg-bar__cta{font-size:14px}
+  .ldg-bar__close{right:10px;width:24px;height:24px}
+}
+@media (prefers-reduced-motion:reduce){
+  #ldgBar *{transition:none !important;animation:none !important}
+}
+
 /* ---------- Canada-only deltas (lifted from the CA source file) ---------- */
 .ldg-modal[data-ldg-country="CA"] .ldg-eyebrow svg{width:13px;height:13px}
 .ldg-modal[data-ldg-country="CA"] .ldg-badge__ribbon svg{width:10px;height:10px}
@@ -463,7 +659,8 @@
 .ldg-modal[data-ldg-country="CA"] .ldg-modal__h{font-size:clamp(32px,3.6vw,45px)}
 @media (min-width:901px){
   .ldg-modal[data-ldg-country="CA"] .ldg-modal__badge{right:330px;top:92px}
-}`;
+}
+.ldg-bar[data-ldg-country="CA"] .ldg-bar__tag svg{width:11px;height:11px}`;
 
   /* =====================================================================
      5 · Small helpers
@@ -497,6 +694,108 @@
   }
 
   function expired() { return Date.now() >= END; }
+
+  function scrollY() {
+    return window.scrollY || document.documentElement.scrollTop || 0;
+  }
+
+  var REDUCE = false;
+  try { REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  /* A dismissal that lapses after N hours. localStorage, with an in-memory
+     fallback for private mode / blocked storage. */
+  var memDismiss = {};
+  function dismissedFor(key) {
+    if (memDismiss[key] && memDismiss[key] > Date.now()) return true;
+    var until = parseInt(ls(key) || '0', 10);
+    return !!until && until > Date.now();
+  }
+  function dismissFor(key, hours) {
+    var until = Date.now() + hours * 36e5;
+    memDismiss[key] = until;
+    ls(key, String(until));
+  }
+
+  /* ---------------------------------------------------------------------
+     Web Animations, not CSS transitions.
+     A transition has to be written to the element's inline `transition`
+     property. On a host-page element (a nav, <body>) that would clobber
+     whatever transition the site already had there, and restoring it later
+     is guesswork. el.animate() composites on top instead and touches no
+     inline style at all: the caller writes the FINAL value to the element,
+     then animates from the old one to it.
+     --------------------------------------------------------------------- */
+  function animate(el, from, to, ms, easing) {
+    if (!ms || !el.animate) return null;
+    try { return el.animate([from, to], { duration: ms, easing: easing, fill: 'none' }); }
+    catch (e) { return null; }
+  }
+
+  /* ---------------------------------------------------------------------
+     Shadow-DOM sandbox. The markup and the stylesheet live inside a shadow
+     tree, so none of the popup's or the bar's CSS can match anything on the
+     host page, and none of the host page's CSS can match anything inside.
+     `all:initial` on the host element stops blanket site rules (`div{...}`,
+     `body > *{...}`, `*{...}`) from reaching it and gives the shadow tree a
+     known set of inherited values to start from.
+     --------------------------------------------------------------------- */
+  var fallbackCssAdded = false;
+  function sandbox(id, markup, hostStyle) {
+    var host = document.createElement('div');
+    host.id = id;
+    host.setAttribute('style', 'all:initial;' + (hostStyle || ''));
+
+    var root = null;
+    if (host.attachShadow) {
+      try { root = host.attachShadow({ mode: 'open' }); } catch (e) { root = null; }
+    }
+
+    var tmp = document.createElement('div');
+    tmp.innerHTML = markup;
+    var el = tmp.firstElementChild;
+
+    if (root) {
+      var style = document.createElement('style');
+      style.textContent = CSS.replace('__LDG_ROOT__', ':host');
+      root.appendChild(style);
+      root.appendChild(el);
+    } else {
+      // No Shadow DOM (pre-2018 browsers): one shared sheet in <head>. Every
+      // selector there is either .ldg-* prefixed or scoped to #ldgExitModal
+      // / #ldgBar, so the blast radius stays small.
+      if (!fallbackCssAdded) {
+        var shared = document.createElement('style');
+        shared.id = 'ldg-css';
+        shared.textContent = CSS.replace('__LDG_ROOT__', ':root');
+        document.head.appendChild(shared);
+        fallbackCssAdded = true;
+      }
+      host.appendChild(el);
+    }
+    return { host: host, root: root, el: el };
+  }
+
+  /* One countdown driver, shared by the popup and the bar. Writes into every
+     [data-unit] element inside `scope`. */
+  function countdown(scope, onExpire) {
+    var timer = null;
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    function set(u, v) {
+      var el = scope.querySelector('[data-unit="' + u + '"]');
+      if (el && el.textContent !== v) el.textContent = v;
+    }
+    function tick() {
+      if (expired()) { stop(); if (onExpire) onExpire(); return; }
+      var s = Math.floor((END - Date.now()) / 1000);
+      set('days',    pad(Math.floor(s / 86400)));
+      set('hours',   pad(Math.floor((s % 86400) / 3600)));
+      set('minutes', pad(Math.floor((s % 3600) / 60)));
+      set('seconds', pad(s % 60));
+    }
+    function start() { tick(); if (!timer) timer = setInterval(tick, 1000); }
+    function stop()  { if (timer) { clearInterval(timer); timer = null; } }
+    return { start: start, stop: stop };
+  }
 
   function ready(fn) {
     if (document.readyState === 'loading') {
@@ -550,47 +849,13 @@
      7 · Render + wire up
      ===================================================================== */
   function mount(country) {
-    /* ------------------------------------------------------------------
-       CSS SANDBOX
-       The markup and the <style> live inside a shadow root, so the popup's
-       rules can never match anything on the host page, and the host page's
-       rules can never match anything inside the popup. The only thing that
-       still touches the document is the scroll lock, and that is now an
-       inline style that is restored exactly on close (see setScrollLock).
-
-       `all:initial` on the host element stops blanket site rules
-       (`div{...}`, `body > *{...}`, `*{...}`) from reaching it, and gives
-       the shadow tree a known set of inherited values to start from.
-       ------------------------------------------------------------------ */
-    var hostEl = document.createElement('div');
-    hostEl.id = 'ldg-exit-intent';
-    hostEl.setAttribute('style', 'all:initial');
-
-    var root = null;
-    if (hostEl.attachShadow) {
-      try { root = hostEl.attachShadow({ mode: 'open' }); } catch (e) { root = null; }
-    }
-
-    var style = document.createElement('style');
-    style.id = 'ldg-exit-intent-css';
-    // ':host' inside the shadow tree, ':root' on the legacy fallback path.
-    style.textContent = CSS.replace('__LDG_ROOT__', root ? ':host' : ':root');
-
-    var tmp = document.createElement('div');
-    tmp.innerHTML = MARKUP[country].replace('{{ART}}', ART[country]);
-    var modal = tmp.firstElementChild;
-
-    if (root) {
-      root.appendChild(style);
-      root.appendChild(modal);
-      document.body.appendChild(hostEl);
-    } else {
-      // No Shadow DOM (pre-2018 browsers): fall back to the old behaviour.
-      // Every selector is either .ldg-* prefixed or under #ldgExitModal.
-      document.head.appendChild(style);
-      hostEl.appendChild(modal);
-      document.body.appendChild(hostEl);
-    }
+    // Isolated shadow tree — see sandbox() in section 5. The only thing this
+    // popup touches on the host page is the scroll lock below, and that is an
+    // inline style restored byte-exact on close.
+    var box   = sandbox('ldg-exit-intent', MARKUP[country].replace('{{ART}}', ART[country]));
+    var root  = box.root;
+    var modal = box.el;
+    document.body.appendChild(box.host);
 
     // Focus lives inside the shadow tree, so document.activeElement would
     // only ever report the host element. Query the shadow root instead.
@@ -614,21 +879,7 @@
     }
 
     // ---- countdown ----
-    var timer = null;
-    var pad = function (n) { return n < 10 ? '0' + n : String(n); };
-
-    function tick() {
-      if (expired()) { close(true); return; }
-      var s = Math.floor((END - Date.now()) / 1000);
-      var set = function (u, v) {
-        var el = modal.querySelector('[data-unit="' + u + '"]');
-        if (el && el.textContent !== v) el.textContent = v;
-      };
-      set('days',    pad(Math.floor(s / 86400)));
-      set('hours',   pad(Math.floor((s % 86400) / 3600)));
-      set('minutes', pad(Math.floor((s % 3600) / 60)));
-      set('seconds', pad(s % 60));
-    }
+    var clock = countdown(modal, function () { close(true); });
 
     // ---- open / close ----
     var lastFocus = null;
@@ -638,8 +889,7 @@
       if (isOpen || isClosed() || expired()) return;
       isOpen = true;
       lastFocus = document.activeElement;
-      tick();
-      timer = setInterval(tick, 1000);
+      clock.start();
       modal.classList.remove('ldg-hide');
       setScrollLock(true);
       var focusable = modal.querySelector('.ldg-modal__close');
@@ -650,7 +900,7 @@
     function close(silent) {
       isOpen = false;
       modal.classList.add('ldg-hide');
-      if (timer) { clearInterval(timer); timer = null; }
+      clock.stop();
       setScrollLock(false);
       if (!silent) {
         markClosed();
@@ -767,16 +1017,310 @@
   }
 
   /* =====================================================================
-     9 · Boot
+     9 · STICKY TOP BAR
+
+     WHY IT IS FIXED, AND NOT INSERTED AT THE TOP OF <body>
+     A script that runs after the page has rendered cannot make itself the
+     first thing in the document flow without reordering the site's own DOM,
+     and even if it did, a position:fixed or sticky header — which is what a
+     Webflow navbar usually is — ignores document flow entirely and would sit
+     on top of the bar anyway. So the bar is fixed, and room for it is made
+     explicitly, in three places at once:
+
+       <body> padding-top      →  everything in normal document flow
+       top: <h> on pinned els  →  everything that ignores flow (fixed/sticky
+                                  headers, sticky sub-navs, sticky tables)
+       --ldg-bar-h on <html>   →  anything sized against the viewport, e.g.
+                                  .hero{min-height:calc(100vh - var(--ldg-bar-h,0px))}
+
+     All three animate on the same curve and duration as the bar's own slide,
+     so the page opens for it in one motion instead of jumping. Every value is
+     recorded before it is touched and put back byte-exact when the bar goes,
+     so the page ends up in precisely the state it started in.
      ===================================================================== */
-  if (qs.get('ldreset') === '1') { clearClosed(); lsDel(CONFIG.geoKey); }
+  function mountBar(country) {
+    var B = CONFIG.bar;
+    if (!B.enabled || !BAR[country]) return;
+    if (expired()) return;
+    if (document.getElementById('ldg-promo-bar')) return;
+    if (dismissedFor(B.dismissKey) && qs.get('ldbar') !== '1') return;
+
+    var ANIM = REDUCE ? 0 : B.animMs;
+    var EASE = B.easing;
+
+    var box  = sandbox('ldg-promo-bar', BAR[country],
+      'position:fixed;top:0;left:0;right:0;display:none;z-index:' + B.zIndex + ';' +
+      'transform:translateY(-100%);opacity:0;will-change:transform,opacity');
+    var host = box.host, bar = box.el;
+    document.body.appendChild(host);
+
+    var clock = countdown(bar, function () { hide(true); });
+
+    /* ---- every host-page inline style we touch, so we can put it back ---- */
+    var touched = [];
+    function setProp(el, prop, value) {
+      var i;
+      for (i = 0; i < touched.length; i++) {
+        if (touched[i][0] === el && touched[i][1] === prop) break;
+      }
+      if (i === touched.length) {
+        touched.push([el, prop, el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)]);
+      }
+      el.style.setProperty(prop, value);
+    }
+    function restoreAll() {
+      touched.forEach(function (t) {
+        t[0].style.removeProperty(t[1]);
+        if (t[2]) t[0].style.setProperty(t[1], t[2], t[3]);
+      });
+      touched = [];
+    }
+
+    /* Each element's untouched starting value, remembered from the first read.
+       Re-reading later would return whatever the running animation is showing
+       at that instant, which is exactly what we want as an animation's FROM
+       value and exactly what we must not use as a base. */
+    var bases = [];
+    function baseFor(el, prop) {
+      for (var i = 0; i < bases.length; i++) {
+        if (bases[i][0] === el && bases[i][1] === prop) return bases[i][2];
+      }
+      var v = parseFloat(window.getComputedStyle(el).getPropertyValue(prop));
+      if (isNaN(v)) v = 0;
+      bases.push([el, prop, v]);
+      return v;
+    }
+    function nowAt(el, prop) {
+      var v = parseFloat(window.getComputedStyle(el).getPropertyValue(prop));
+      return isNaN(v) ? 0 : v;
+    }
+
+    /* ---- what has to move out from under the bar ------------------------
+       A bounded candidate set, not a getComputedStyle sweep of the whole
+       document: the elements that end up under a top bar are the ones pinned
+       to the top of the viewport, and those are always either a header-ish
+       element or a direct child of <body>. */
+    var PINNED_HINTS = 'header,nav,[role="banner"],.w-nav,[class*="navbar"],' +
+                       '[class*="nav-bar"],[class*="topbar"],[class*="top-bar"],' +
+                       '[class*="header"],[class*="sticky"],[data-sticky]';
+
+    var pinned = [];   // fixed / sticky and anchored to the top → animate `top`
+    var flowed = [];   // opted in by attribute, in normal flow  → `margin-top`
+
+    function scanTargets() {
+      pinned = []; flowed = [];
+      var explicit = document.querySelectorAll(B.pushSelector);
+      var cand = [], seen = [], i;
+      function add(list) { for (var j = 0; j < list.length; j++) cand.push(list[j]); }
+
+      add(explicit);
+      if (B.autoPush) {
+        add(document.querySelectorAll(PINNED_HINTS));
+        add(document.body.children);
+      }
+
+      var rows = [];
+      for (i = 0; i < cand.length; i++) {
+        var el = cand[i];
+        if (!el || el.nodeType !== 1) continue;
+        if (el === host || el.id === 'ldg-exit-intent' || el.contains(host)) continue;
+        if (seen.indexOf(el) !== -1) continue;
+        seen.push(el);
+
+        var cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+
+        var pin = (cs.position === 'fixed' || cs.position === 'sticky');
+        rows.push({
+          el:    el,
+          pin:   pin,
+          // 'top:auto' reads as NaN, which is how bottom-anchored things
+          // (a cookie bar, a chat bubble) exclude themselves.
+          top:   pin ? baseFor(el, 'top') : NaN,
+          h:     el.getBoundingClientRect().height,
+          optIn: Array.prototype.indexOf.call(explicit, el) !== -1
+        });
+      }
+
+      // A full-viewport fixed element is an open menu or a lightbox, not
+      // page chrome, and must never be nudged.
+      function chrome(r) {
+        return r.pin && !isNaN(r.top) && r.h <= window.innerHeight * 0.8;
+      }
+
+      // Pass 1 · what is pinned to the very top, and how far down does that
+      // band of chrome reach?
+      var stack = 0;
+      rows.forEach(function (r) {
+        if (chrome(r) && r.top <= 4) stack = Math.max(stack, r.top + r.h);
+      });
+
+      // Pass 2 · everything pinned at or inside that band moves with it — so a
+      // sticky sub-nav parked under a fixed header stays parked under it, and
+      // a fixed chat bubble halfway down the viewport is left alone.
+      rows.forEach(function (r) {
+        if (chrome(r) && r.top <= stack + 4) pinned.push(r.el);
+        else if (r.optIn) flowed.push(r.el);
+      });
+    }
+
+    /* ---- open the page up by `px`, on the bar's own curve ---- */
+    function applyOffset(px, ms) {
+      var body = document.body, de = document.documentElement;
+
+      // 1 · normal document flow
+      var pad = baseFor(body, 'padding-top') + px;
+      var was = nowAt(body, 'padding-top');
+      setProp(body, 'padding-top', pad + 'px');
+      animate(body, { paddingTop: was + 'px' }, { paddingTop: pad + 'px' }, ms, EASE);
+
+      // 2 · anything pinned to the top of the viewport
+      pinned.forEach(function (el) {
+        var to = baseFor(el, 'top') + px, from = nowAt(el, 'top');
+        setProp(el, 'top', to + 'px');
+        animate(el, { top: from + 'px' }, { top: to + 'px' }, ms, EASE);
+      });
+
+      // 3 · explicit opt-ins sitting in normal flow
+      flowed.forEach(function (el) {
+        var to = baseFor(el, 'margin-top') + px, from = nowAt(el, 'margin-top');
+        setProp(el, 'margin-top', to + 'px');
+        animate(el, { marginTop: from + 'px' }, { marginTop: to + 'px' }, ms, EASE);
+      });
+
+      // 4 · viewport-sized sections, and in-page anchor links
+      setProp(de, B.cssVar, px + 'px');
+      setProp(de, 'scroll-padding-top', px + 'px');
+    }
+
+    /* ---- show / hide ---- */
+    var visible = false;
+    var gone    = false;     // dismissed or expired: never comes back
+    var settle  = null;
+
+    function show() {
+      if (visible || gone) return;
+      visible = true;
+      clearTimeout(settle);
+
+      host.style.display = 'block';    // still translated off-screen + transparent
+      scanTargets();
+      var h = Math.round(host.getBoundingClientRect().height);
+
+      host.style.transform = 'translateY(0)';
+      host.style.opacity   = '1';
+      animate(host, { transform: 'translateY(-100%)', opacity: 0 },
+                    { transform: 'translateY(0)',     opacity: 1 }, ANIM, EASE);
+      applyOffset(h, ANIM);
+
+      // Only reachable with hideOnScroll off: hold the reading position
+      // instead of shoving whatever the visitor is reading down the screen.
+      if (!B.hideOnScroll && scrollY() > 0) window.scrollBy(0, h);
+
+      clock.start();
+    }
+
+    function hide(permanent) {
+      if (permanent) gone = true;
+      if (!visible) { if (permanent) teardown(); return; }
+      visible = false;
+      clearTimeout(settle);
+
+      host.style.transform = 'translateY(-100%)';
+      host.style.opacity   = '0';
+      animate(host, { transform: 'translateY(0)',     opacity: 1 },
+                    { transform: 'translateY(-100%)', opacity: 0 }, ANIM, EASE);
+      applyOffset(0, ANIM);
+
+      settle = setTimeout(function () {
+        if (visible) return;           // scrolled back up mid-animation
+        host.style.display = 'none';
+        restoreAll();                  // page is byte-exact again
+        clock.stop();
+        if (gone) teardown();
+      }, ANIM + 60);
+    }
+
+    function teardown() {
+      clock.stop();
+      clearTimeout(settle);
+      restoreAll();
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      if (ro) { try { ro.disconnect(); } catch (e) {} }
+      if (host.parentNode) host.parentNode.removeChild(host);
+    }
+
+    /* ---- keep the offset honest -----------------------------------------
+       The bar's height is not a constant: it wraps at narrow widths, and it
+       grows the moment the web font swaps in. A ResizeObserver catches both,
+       plus anything else that changes it, which a resize listener alone does
+       not. Corrections are applied instantly — they are not a movement. */
+    function remeasure() {
+      if (!visible) return;
+      applyOffset(Math.round(host.getBoundingClientRect().height), 0);
+    }
+    var ro = null;
+    if (window.ResizeObserver) {
+      ro = new ResizeObserver(remeasure);
+      try { ro.observe(host); } catch (e) { ro = null; }
+    }
+    function onResize() {
+      if (!visible) return;
+      scanTargets();          // a nav can be static on mobile and fixed on desktop
+      remeasure();
+    }
+    window.addEventListener('resize', onResize);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(remeasure).catch(function () {});
+    }
+
+    /* ---- scroll: retract on the way down, return at the very top ---- */
+    function onScroll() {
+      if (gone || !B.hideOnScroll) return;
+      var y = scrollY();
+      if (y <= B.showAtPx)      show();
+      else if (y >= B.hideAtPx) hide(false);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    /* ---- dismiss ---- */
+    bar.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-ldg-dismiss="bar"]')) return;
+      e.preventDefault();
+      dismissFor(B.dismissKey, B.dismissHours);
+      hide(true);
+    });
+
+    /* ---- entry ----------------------------------------------------------
+       If the visitor landed already scrolled, the bar stays out of the way
+       and nothing on the page moves at all — no layout shift chasing someone
+       who is already reading. It slides in the moment they return to the top. */
+    if (B.hideOnScroll && scrollY() > B.hideAtPx) return;
+    requestAnimationFrame(function () { show(); });
+  }
+
+  /* =====================================================================
+     10 · Boot
+     ===================================================================== */
+  if (qs.get('ldreset') === '1') {
+    clearClosed();
+    lsDel(CONFIG.bar.dismissKey);
+    lsDel(CONFIG.geoKey);
+  }
 
   if (expired()) return;
-  if (isClosed()) return;
-  if (document.getElementById('ldg-exit-intent')) return;   // already mounted
 
   resolveCountry().then(function (country) {
     if (CONFIG.countries.indexOf(country) === -1) return;
-    ready(function () { mount(country); });
+    ready(function () {
+      // The two surfaces are independent: dismissing one never affects the
+      // other, and each is gated by its own flag.
+      mountBar(country);
+
+      if (isClosed()) return;
+      if (document.getElementById('ldg-exit-intent')) return;   // already mounted
+      mount(country);
+    });
   });
 })();
