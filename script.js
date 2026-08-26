@@ -116,9 +116,14 @@
            - position:fixed / sticky headers pinned to top:0 get top:<h>
            - <html> gets a --ldg-bar-h custom property, for 100vh heroes:
                  .hero { min-height: calc(100vh - var(--ldg-bar-h, 0px)); }
-         Nothing has to be added to the page for this to work. If auto ever
-         guesses wrong on a given template, tag elements by hand with
-         promo-banner="push-down" — those are always offset as well. */
+         Nothing has to be added to the page for this to work.
+
+         pushSelector is the manual fallback, and it is only consulted when
+         autoPush is FALSE — with autoPush on, <body> padding has already moved
+         everything in normal flow, so also giving a tagged element its own
+         margin would move it twice. That means any promo-banner="push-down"
+         attributes left in Webflow by the older banner script are harmless
+         here: set autoPush:false to go back to honouring them instead. */
       autoPush: true,
       pushSelector: '[promo-banner="push-down"]',
       cssVar: '--ldg-bar-h'
@@ -1130,22 +1135,47 @@
         var cs = window.getComputedStyle(el);
         if (cs.display === 'none' || cs.visibility === 'hidden') continue;
 
-        var pin = (cs.position === 'fixed' || cs.position === 'sticky');
+        var rect = el.getBoundingClientRect();
         rows.push({
-          el:    el,
-          pin:   pin,
+          el:      el,
+          pin:     (cs.position === 'fixed' || cs.position === 'sticky'),
+          sticky:  cs.position === 'sticky',
           // 'top:auto' reads as NaN, which is how bottom-anchored things
           // (a cookie bar, a chat bubble) exclude themselves.
-          top:   pin ? baseFor(el, 'top') : NaN,
-          h:     el.getBoundingClientRect().height,
-          optIn: Array.prototype.indexOf.call(explicit, el) !== -1
+          top:     baseFor(el, 'top'),
+          rectTop: rect.top,
+          h:       rect.height,
+          optIn:   Array.prototype.indexOf.call(explicit, el) !== -1
         });
       }
 
-      // A full-viewport fixed element is an open menu or a lightbox, not
-      // page chrome, and must never be nudged.
+      /* Is this element pinned to the VIEWPORT, or to something inside the
+         page? A sticky element sticks to its nearest scrolling ancestor, so
+         the sticky header of a table inside a scrollable panel — an embedded
+         product demo, say — has nothing to do with the top of the window and
+         must be left exactly where it is. */
+      function pinnedToViewport(el) {
+        var n = el.parentElement;
+        while (n && n !== document.body && n !== document.documentElement) {
+          var cs = window.getComputedStyle(n);
+          if (cs.overflow !== 'visible' || cs.overflowY !== 'visible') return false;
+          n = n.parentElement;
+        }
+        return true;
+      }
+
       function chrome(r) {
-        return r.pin && !isNaN(r.top) && r.h <= window.innerHeight * 0.8;
+        if (!r.pin || isNaN(r.top)) return false;
+        // Zero-height (a collapsed or measuring node) or full-viewport (an open
+        // menu, a lightbox) — neither is page chrome.
+        if (r.h <= 0 || r.h > window.innerHeight * 0.8) return false;
+        if (r.sticky) return pinnedToViewport(r.el);
+        // A fixed element counts only if `top` is actually what places it. If
+        // its rect says otherwise it sits inside a transformed ancestor and is
+        // not really viewport-fixed at all. Compared against its CURRENT top,
+        // not its base: a re-scan can land mid-animation (scroll down and back
+        // up inside one animation frame budget), and there the two agree.
+        return Math.abs(r.rectTop - nowAt(r.el, 'top')) <= 2;
       }
 
       // Pass 1 · what is pinned to the very top, and how far down does that
@@ -1159,8 +1189,13 @@
       // sticky sub-nav parked under a fixed header stays parked under it, and
       // a fixed chat bubble halfway down the viewport is left alone.
       rows.forEach(function (r) {
-        if (chrome(r) && r.top <= stack + 4) pinned.push(r.el);
-        else if (r.optIn) flowed.push(r.el);
+        if (chrome(r) && r.top <= stack + 4) { pinned.push(r.el); return; }
+        /* An opt-in that lives in normal flow only needs its own margin when
+           autoPush is OFF. With autoPush ON, <body> padding has ALREADY moved
+           everything in flow, and moving it again would shift it by twice the
+           bar's height — which is exactly what happens on a page still carrying
+           promo-banner="push-down" attributes from the older banner script. */
+        if (r.optIn && !B.autoPush) flowed.push(r.el);
       });
     }
 
@@ -1168,11 +1203,14 @@
     function applyOffset(px, ms) {
       var body = document.body, de = document.documentElement;
 
-      // 1 · normal document flow
-      var pad = baseFor(body, 'padding-top') + px;
-      var was = nowAt(body, 'padding-top');
-      setProp(body, 'padding-top', pad + 'px');
-      animate(body, { paddingTop: was + 'px' }, { paddingTop: pad + 'px' }, ms, EASE);
+      // 1 · normal document flow. Skipped when autoPush is off — that mode
+      //     moves only the elements the page has tagged by hand.
+      if (B.autoPush) {
+        var pad = baseFor(body, 'padding-top') + px;
+        var was = nowAt(body, 'padding-top');
+        setProp(body, 'padding-top', pad + 'px');
+        animate(body, { paddingTop: was + 'px' }, { paddingTop: pad + 'px' }, ms, EASE);
+      }
 
       // 2 · anything pinned to the top of the viewport
       pinned.forEach(function (el) {
