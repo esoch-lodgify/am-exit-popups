@@ -21,6 +21,11 @@
  *      (sessionStorage). Closing counts for the close button, the backdrop
  *      and the Esc key.
  *   5. Hides itself automatically once the deadline passes.
+ *   6. Renders inside a Shadow DOM sandbox, so none of its CSS reaches the
+ *      host page and none of the host page's CSS reaches it. The only
+ *      document-level side effects are the scroll lock while the popup is
+ *      open (an inline style, restored on close) and the optional
+ *      <html data-country> mirror (CONFIG.setHtmlAttr).
  *
  * QA HELPERS (query string, no code changes needed)
  *   ?ldgeo=CA     force a country          e.g. /pricing/?ldgeo=CA
@@ -280,7 +285,7 @@
   /* =====================================================================
      4 · STYLES
      ===================================================================== */
-  var CSS = `:root{
+  var CSS = `__LDG_ROOT__{
   --ldg-yellow:#FFF65B;
   --ldg-yellow-deep:#F2E627;
   --ldg-yellow-soft:#FFFBCB;
@@ -295,7 +300,7 @@
 
 /* ---------- shared ---------- */
 .ldg *,.ldg *::before,.ldg *::after{box-sizing:border-box}
-.ldg{font-family:var(--ldg-body);letter-spacing:-.2px;-webkit-font-smoothing:antialiased;color:var(--ldg-ink)}
+.ldg{font-family:var(--ldg-body);line-height:1.5;letter-spacing:-.2px;-webkit-font-smoothing:antialiased;color:var(--ldg-ink)}
 .ldg-hide{display:none !important}
 .ldg :focus-visible{outline:3px solid var(--ldg-ink);outline-offset:3px;border-radius:6px}
 
@@ -446,7 +451,6 @@
 .ldg-modal{z-index:2147483000;overflow-y:auto;overscroll-behavior:contain;
   align-items:safe center;justify-items:center}
 .ldg-modal__box{margin:auto}
-html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
 @media (prefers-reduced-motion:reduce){
   #ldgExitModal *{transition:none !important;animation:none !important}
 }
@@ -546,15 +550,68 @@ html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
      7 · Render + wire up
      ===================================================================== */
   function mount(country) {
+    /* ------------------------------------------------------------------
+       CSS SANDBOX
+       The markup and the <style> live inside a shadow root, so the popup's
+       rules can never match anything on the host page, and the host page's
+       rules can never match anything inside the popup. The only thing that
+       still touches the document is the scroll lock, and that is now an
+       inline style that is restored exactly on close (see setScrollLock).
+
+       `all:initial` on the host element stops blanket site rules
+       (`div{...}`, `body > *{...}`, `*{...}`) from reaching it, and gives
+       the shadow tree a known set of inherited values to start from.
+       ------------------------------------------------------------------ */
+    var hostEl = document.createElement('div');
+    hostEl.id = 'ldg-exit-intent';
+    hostEl.setAttribute('style', 'all:initial');
+
+    var root = null;
+    if (hostEl.attachShadow) {
+      try { root = hostEl.attachShadow({ mode: 'open' }); } catch (e) { root = null; }
+    }
+
     var style = document.createElement('style');
     style.id = 'ldg-exit-intent-css';
-    style.textContent = CSS;
-    document.head.appendChild(style);
+    // ':host' inside the shadow tree, ':root' on the legacy fallback path.
+    style.textContent = CSS.replace('__LDG_ROOT__', root ? ':host' : ':root');
 
-    var host = document.createElement('div');
-    host.innerHTML = MARKUP[country].replace('{{ART}}', ART[country]);
-    var modal = host.firstElementChild;
-    document.body.appendChild(modal);
+    var tmp = document.createElement('div');
+    tmp.innerHTML = MARKUP[country].replace('{{ART}}', ART[country]);
+    var modal = tmp.firstElementChild;
+
+    if (root) {
+      root.appendChild(style);
+      root.appendChild(modal);
+      document.body.appendChild(hostEl);
+    } else {
+      // No Shadow DOM (pre-2018 browsers): fall back to the old behaviour.
+      // Every selector is either .ldg-* prefixed or under #ldgExitModal.
+      document.head.appendChild(style);
+      hostEl.appendChild(modal);
+      document.body.appendChild(hostEl);
+    }
+
+    // Focus lives inside the shadow tree, so document.activeElement would
+    // only ever report the host element. Query the shadow root instead.
+    function activeEl() { return (root || document).activeElement; }
+
+    // ---- scroll lock (the one deliberate touch on the host page) ----
+    var scrollLocked = false, prevOverflow = '', prevPriority = '';
+    function setScrollLock(on) {
+      if (!CONFIG.lockScroll) return;
+      var el = document.documentElement;
+      if (on && !scrollLocked) {
+        prevOverflow = el.style.getPropertyValue('overflow');
+        prevPriority = el.style.getPropertyPriority('overflow');
+        el.style.setProperty('overflow', 'hidden', 'important');
+        scrollLocked = true;
+      } else if (!on && scrollLocked) {
+        el.style.removeProperty('overflow');
+        if (prevOverflow) el.style.setProperty('overflow', prevOverflow, prevPriority);
+        scrollLocked = false;
+      }
+    }
 
     // ---- countdown ----
     var timer = null;
@@ -584,7 +641,7 @@ html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
       tick();
       timer = setInterval(tick, 1000);
       modal.classList.remove('ldg-hide');
-      if (CONFIG.lockScroll) document.documentElement.classList.add('ldg-scroll-lock');
+      setScrollLock(true);
       var focusable = modal.querySelector('.ldg-modal__close');
       if (focusable) focusable.focus();
       disarm();
@@ -594,7 +651,7 @@ html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
       isOpen = false;
       modal.classList.add('ldg-hide');
       if (timer) { clearInterval(timer); timer = null; }
-      if (CONFIG.lockScroll) document.documentElement.classList.remove('ldg-scroll-lock');
+      setScrollLock(false);
       if (!silent) {
         markClosed();
         if (lastFocus && lastFocus.focus) lastFocus.focus();
@@ -617,8 +674,9 @@ html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
       var items = modal.querySelectorAll('a[href], button:not([disabled])');
       if (!items.length) return;
       var first = items[0], last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      var here = activeEl();
+      if (e.shiftKey && here === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && here === last) { e.preventDefault(); first.focus(); }
     });
 
     // ---- copy the coupon code ----
@@ -715,7 +773,7 @@ html.ldg-scroll-lock,body.ldg-scroll-lock{overflow:hidden !important}
 
   if (expired()) return;
   if (isClosed()) return;
-  if (document.getElementById('ldgExitModal')) return;   // already mounted
+  if (document.getElementById('ldg-exit-intent')) return;   // already mounted
 
   resolveCountry().then(function (country) {
     if (CONFIG.countries.indexOf(country) === -1) return;
