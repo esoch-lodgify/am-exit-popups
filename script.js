@@ -40,10 +40,11 @@
  *   inline styles, both restored byte-exact.
  *
  * ARTWORK  ⚠ SET THESE BEFORE GOING LIVE
- *   CONFIG.assets holds the two photos and the two "-50%" tag PNGs. They are
- *   hosted files, not inlined, so this script stays ~40 KB instead of ~700 KB
- *   on every page view. The image files ship alongside this one in /assets.
- *   Serve them over https from the same CDN as the rest of the site.
+ *   CONFIG.art holds one photo + one "-50%" tag per variant. They are hosted
+ *   files, not inlined, so this script stays ~90 KB instead of ~700 KB on
+ *   every page view. The source images ship alongside this one in /assets.
+ *   The URLs must be ABSOLUTE — they end up in a CSS url(), which resolves
+ *   against the page's address, not this script's. See the block for why.
  *
  * COPY / DATES
  *   The visible date strings ("11:59 PM PT on September 8, 2026" and the
@@ -76,21 +77,34 @@
     deadline: '2026-09-08T23:59:59-07:00',
 
     /* --- artwork ---------------------------------------------------------
-       ⚠ Replace these with your own hosted URLs before going live. The image
-       files are in /assets next to this script:
-         ld2026-photo-us.jpg   ld2026-tag-us.png
-         ld2026-photo-ca.jpg   ld2026-tag-ca.png   (shared by CA_EN + CA_FR)
-       Anything not https on the same origin as the page will need CORS-free
-       plain <img>-style hosting, which any CDN gives you by default. */
-    assets: {
-      photo: {
-        US: 'https://use.lodgify.com/hubfs/Promos/ld2026-photo-us.jpg',
-        CA: 'https://use.lodgify.com/hubfs/Promos/ld2026-photo-ca.jpg'
-      },
-      tag: {
-        US: 'https://use.lodgify.com/hubfs/Promos/ld2026-tag-us.png',
-        CA: 'https://use.lodgify.com/hubfs/Promos/ld2026-tag-ca.png'
-      }
+       Live Webflow asset URLs. One entry per variant, so CA_FR can be given
+       its own French "-50%" tag later without touching anything else. The
+       source files are in /assets next to this script.
+
+       NOTE they are .avif — that is Webflow's conversion. AVIF is fine on
+       Chrome 85+, Firefox 93+, Edge 85+ and Safari 16.4+, but a visitor on
+       Safari 16.3 or older gets no photo and no tag: the popup still works
+       and stays readable (the dark panel and scrim are CSS), it just loses
+       its background. If that matters, upload the .jpg/.png from /assets too
+       and swap these for image-set() with the AVIF first.
+
+       THEY MUST BE ABSOLUTE URLs. A bare filename or a site-relative path
+       will NOT work: these land in a CSS url() inside the injected
+       stylesheet, and the browser resolves that against the PAGE's address,
+       not this script's. On /pricing/ , 'photo-us.jpg' would be fetched from
+       lodgify.com/pricing/photo-us.jpg and 404.
+
+       Background images need no CORS headers, so any static host works.
+       Re-uploading to Webflow mints a new hash in the filename, so re-paste
+       these if you swap a file. checkArt() below warns in the console if one
+       of them is ever left as anything but an absolute URL. */
+    art: {
+      US:    { photo: 'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf49d1619c104d268b3d_photo-us.avif',
+               tag:   'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf48be53e70944a0b4eb_tag-us.avif' },
+      CA_EN: { photo: 'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf49dfd6b716b05aec7f_photo-ca.avif',
+               tag:   'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf48c79e270c46cf359b_tag-ca.avif' },
+      CA_FR: { photo: 'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf49dfd6b716b05aec7f_photo-ca.avif',
+               tag:   'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf48c79e270c46cf359b_tag-ca.avif' }
     },
 
     // --- geo ---
@@ -1115,14 +1129,32 @@ __LDG_ROOT__{
     return { host: host, root: root, el: el };
   }
 
-  /* The stylesheet with this variant's artwork baked in. The two photos and
-     the two tag PNGs are the only thing that differs between variants, and
-     CA_EN / CA_FR share both. */
+  /* The stylesheet with this variant's artwork baked in.
+
+     The replacement is a FUNCTION, not a string: in String.replace a literal
+     replacement treats $&, $`, $' and $1 as substitution patterns, so a URL
+     that happened to contain a $ would be silently mangled. Returning the
+     value from a function passes it through untouched. */
   function cssFor(variant) {
-    var region = variant === 'US' ? 'US' : 'CA';
+    var art = CONFIG.art[variant] || {};
     return CSS
-      .replace('__LDG_PHOTO__', CONFIG.assets.photo[region])
-      .replace('__LDG_TAG__',   CONFIG.assets.tag[region]);
+      .replace('__LDG_PHOTO__', function () { return art.photo || ''; })
+      .replace('__LDG_TAG__',   function () { return art.tag   || ''; });
+  }
+
+  /* A bare filename in CONFIG.art resolves against the PAGE, not this script,
+     so it would 404 on every page but the site root. Say so once, loudly, in
+     the console rather than leaving someone to wonder why the popup is grey. */
+  function checkArt(variant) {
+    var art = CONFIG.art[variant] || {};
+    ['photo', 'tag'].forEach(function (k) {
+      var v = art[k];
+      if (!v || /^(https?:)?\/\//.test(v) || v.indexOf('data:') === 0) return;
+      if (window.console && console.warn) {
+        console.warn('[ldg] CONFIG.art.' + variant + '.' + k + ' is "' + v +
+          '" — that resolves against the page, not this script. Use an absolute URL.');
+      }
+    });
   }
 
   /* The handful of strings the script writes at runtime rather than reading
@@ -1444,6 +1476,8 @@ __LDG_ROOT__{
 
     var ANIM = REDUCE ? 0 : B.animMs;
     var EASE = B.easing;
+
+    checkArt(variant);
 
     var box  = sandbox('ldg-promo-bar', BAR[variant],
       'position:fixed;top:0;left:0;right:0;display:none;z-index:' + B.zIndex + ';' +

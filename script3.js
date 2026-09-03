@@ -42,79 +42,88 @@
  */
 
 (function () {
-  'use strict';
+  "use strict";
 
   /* =====================================================================
      1 · CONFIG
      ===================================================================== */
   var CONFIG = {
     // Where the four artwork files live. Trailing slash required.
-    assetBase: 'https://esoch-lodgify.github.io/am-exit-popups/',
+    assetBase: "https://esoch-lodgify.github.io/am-exit-popups/",
 
     // Offer deadline. ISO 8601 with an explicit offset, so it is the same
     // instant for everyone regardless of their local clock.
     // 11:59:59 PM Pacific on Sept 8 2026 (PDT = UTC-7).
-    deadline: '2026-09-08T23:59:59-07:00',
+    deadline: "2026-09-08T23:59:59-07:00",
 
     // Countries that get a campaign. Anything else sees nothing.
-    countries: ['US', 'CA'],
+    countries: ["US", "CA"],
 
     // --- how a French page is recognised ---
     // Checked in this order: URL path, then hostname, then <html lang>.
     lang: {
       frPath: /^\/fr(\/|$)/i,
       frHost: /^fr\./i,
-      useHtmlLang: true
+      useHtmlLang: true,
     },
 
     // --- geo ---
-    geoKey: 'geo_country',   // shared with the snippet already on the site
-    geoTTL: 864e5,           // 24h
-    geoEndpoint: 'https://www.cloudflare.com/cdn-cgi/trace',
+    geoKey: "geo_country", // shared with the snippet already on the site
+    geoTTL: 864e5, // 24h
+    geoEndpoint: "https://www.cloudflare.com/cdn-cgi/trace",
     geoTimeout: 2500,
-    setHtmlAttr: true,       // mirror onto <html data-country="..">
+    setHtmlAttr: true, // mirror onto <html data-country="..">
 
     // --- top bar ---
     showBar: true,
-    barMode: 'flow',         // 'flow' | 'sticky' | 'fixed'
-    barDismissDays: 3,       // localStorage, per the source design
+    barMode: "flow", // 'flow' | 'sticky' | 'fixed'
+    barDismissDays: 3, // localStorage, per the source design
 
     // --- exit popup ---
     showPopup: true,
-    armDelay: 3000,          // don't arm the trigger for the first N ms
-    mobileTrigger: 'scrollUp', // 'scrollUp' | 'timeout' | 'none'
+    armDelay: 3000, // don't arm the trigger for the first N ms
+    mobileTrigger: "scrollUp", // 'scrollUp' | 'timeout' | 'none'
     mobileTimeout: 25000,
-    scrollUpVelocity: 900,   // px/sec upward flick that counts as an exit
+    scrollUpVelocity: 900, // px/sec upward flick that counts as an exit
     lockScroll: true,
 
     // Popup stays closed for the rest of the browser session (sessionStorage).
     // The bar uses barDismissDays instead — that is the source file's behaviour.
-    popupSessionKey: 'ldg_ld2026_popup_closed',
-    barKey: 'ldg_ld2026_bar_until',
+    popupSessionKey: "ldg_ld2026_popup_closed",
+    barKey: "ldg_ld2026_bar_until",
 
-    loadFonts: false,        // true injects the Jost + Inter stylesheet
+    loadFonts: false, // true injects the Jost + Inter stylesheet
 
     // Visual tweaks go here, not in the CSS blobs further down. Appended last,
     // so these rules win. Scope them to #ldgExitModal or #ldgPromoBar.
     // Per variant if needed:
     //   extraCSS: '#ldgExitModal[data-ldg-variant="CAFR"] .ldg-modal__h{font-size:38px}'
-    extraCSS: ''
+    extraCSS: "",
   };
 
   /* =====================================================================
      2 · ARTWORK  (US has its own pair; CA-EN and CA-FR share one)
      ===================================================================== */
   var ART = {
-    US:   { photo: 'photo-us.jpg', tag: 'tag-us.png' },
-    CAEN: { photo: 'photo-ca.jpg', tag: 'tag-ca.png' },
-    CAFR: { photo: 'photo-ca.jpg', tag: 'tag-ca.png' }
+    US: {
+      photo: "…6a99cf49d1619c104d268b3d_photo-us.avif",
+      tag: "…6a99cf48be53e70944a0b4eb_tag-us.avif",
+    },
+    CA_EN: {
+      photo: "…6a99cf49dfd6b716b05aec7f_photo-ca.avif",
+      tag: "…6a99cf48c79e270c46cf359b_tag-ca.avif",
+    },
+    CA_FR: {
+      photo: "…6a99cf49dfd6b716b05aec7f_photo-ca.avif",
+      tag: "…6a99cf48c79e270c46cf359b_tag-ca.avif",
+    },
   };
 
   /* =====================================================================
      3 · MARKUP  (verbatim from the three design files)
      ===================================================================== */
   var BAR = {
-    US:   `<div class="ldg ldg-bar" id="ldgPromoBar" data-ldg-countdown role="region" aria-label="Labor Day offer">
+    US: `<div class="ldg ldg-bar" id="ldgPromoBar" data-ldg-countdown role="region" aria-label="Labor Day offer">
   <div class="ldg-bar__in">
     <span class="ldg-bar__tag">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.6 6.6L21.5 9l-5 4.7 1.4 7L12 17.3 6.1 20.7l1.4-7L2.5 9l6.9-.4z"/></svg>
@@ -215,11 +224,11 @@
   <button class="ldg-bar__close" type="button" data-ldg-dismiss="bar" aria-label="Fermer l'offre">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
   </button>
-</div>`
+</div>`,
   };
 
   var MODAL = {
-    US:   `<div class="ldg ldg-modal ldg-hide" id="ldgExitModal" data-ldg-countdown role="dialog" aria-modal="true" aria-label="Labor Day Sale — 50% off">
+    US: `<div class="ldg ldg-modal ldg-hide" id="ldgExitModal" data-ldg-countdown role="dialog" aria-modal="true" aria-label="Labor Day Sale — 50% off">
   <div class="ldg-modal__box ldg-modal--panel">
     <div class="ldg-shot__bg" aria-hidden="true"></div>
     <div class="ldg-shot__panel" aria-hidden="true"></div>
@@ -465,7 +474,7 @@
       </div>
     </div>
   </div>
-</div>`
+</div>`,
   };
 
   /* =====================================================================
@@ -927,7 +936,7 @@ html.ldg-scroll-lock{overflow:hidden !important}
   #ldgPromoBar *,#ldgExitModal *{transition:none !important;animation:none !important}
 }
 `;
-  var CSS_FR   = `
+  var CSS_FR = `
 /* ==========================================================================
    LODGIFY — FÊTE DU TRAVAIL 2026 (QUÉBEC · FR) · PHOTO-BACKGROUND SET
      1. .ldg-bar     — site-wide top strip
@@ -1389,7 +1398,7 @@ html.ldg-scroll-lock{overflow:hidden !important}
      5 · Helpers
      ===================================================================== */
   var END = new Date(CONFIG.deadline).getTime();
-  var qs  = new URLSearchParams(window.location.search);
+  var qs = new URLSearchParams(window.location.search);
 
   function ls(key, val) {
     try {
@@ -1398,17 +1407,26 @@ html.ldg-scroll-lock{overflow:hidden !important}
     } catch (e) {}
     return null;
   }
-  function lsDel(key) { try { window.localStorage.removeItem(key); } catch (e) {} }
+  function lsDel(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (e) {}
+  }
 
   var memPopupClosed = false;
   function popupClosed() {
     if (memPopupClosed) return true;
-    try { return window.sessionStorage.getItem(CONFIG.popupSessionKey) === '1'; }
-    catch (e) { return false; }
+    try {
+      return window.sessionStorage.getItem(CONFIG.popupSessionKey) === "1";
+    } catch (e) {
+      return false;
+    }
   }
   function markPopupClosed() {
     memPopupClosed = true;
-    try { window.sessionStorage.setItem(CONFIG.popupSessionKey, '1'); } catch (e) {}
+    try {
+      window.sessionStorage.setItem(CONFIG.popupSessionKey, "1");
+    } catch (e) {}
   }
 
   function barDismissed() {
@@ -1419,12 +1437,16 @@ html.ldg-scroll-lock{overflow:hidden !important}
     ls(CONFIG.barKey, String(Date.now() + CONFIG.barDismissDays * 864e5));
   }
 
-  function expired() { return Date.now() >= END; }
+  function expired() {
+    return Date.now() >= END;
+  }
 
   function ready(fn) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn, { once: true });
-    } else { fn(); }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
+    } else {
+      fn();
+    }
   }
 
   /* =====================================================================
@@ -1432,55 +1454,66 @@ html.ldg-scroll-lock{overflow:hidden !important}
      ===================================================================== */
   function cachedCountry() {
     try {
-      var o = JSON.parse(ls(CONFIG.geoKey) || 'null');
-      return (o && (Date.now() - o.t < CONFIG.geoTTL)) ? o.c : null;
-    } catch (e) { return null; }
+      var o = JSON.parse(ls(CONFIG.geoKey) || "null");
+      return o && Date.now() - o.t < CONFIG.geoTTL ? o.c : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function applyCountry(c) {
     if (CONFIG.setHtmlAttr) {
-      document.documentElement.setAttribute('data-country', c);
-      if (c === 'US') document.documentElement.classList.add('is-us');
+      document.documentElement.setAttribute("data-country", c);
+      if (c === "US") document.documentElement.classList.add("is-us");
     }
     return c;
   }
 
   function resolveCountry() {
-    var forced = (qs.get('ldgeo') || '').toUpperCase();
+    var forced = (qs.get("ldgeo") || "").toUpperCase();
     if (/^[A-Z]{2}$/.test(forced)) return Promise.resolve(applyCountry(forced));
 
     var hit = cachedCountry();
     if (hit) return Promise.resolve(applyCountry(hit));
 
-    var ctrl = ('AbortController' in window) ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, CONFIG.geoTimeout);
+    var ctrl = "AbortController" in window ? new AbortController() : null;
+    var timer = setTimeout(function () {
+      if (ctrl) ctrl.abort();
+    }, CONFIG.geoTimeout);
 
     return fetch(CONFIG.geoEndpoint, ctrl ? { signal: ctrl.signal } : undefined)
-      .then(function (r) { return r.text(); })
+      .then(function (r) {
+        return r.text();
+      })
       .then(function (t) {
         clearTimeout(timer);
-        var c = (t.match(/loc=([A-Z]{2})/) || [])[1] || 'XX';
+        var c = (t.match(/loc=([A-Z]{2})/) || [])[1] || "XX";
         ls(CONFIG.geoKey, JSON.stringify({ c: c, t: Date.now() }));
         return applyCountry(c);
       })
-      .catch(function () { clearTimeout(timer); return applyCountry('XX'); });
+      .catch(function () {
+        clearTimeout(timer);
+        return applyCountry("XX");
+      });
   }
 
   function resolveLang() {
-    var forced = (qs.get('ldlang') || '').toLowerCase();
+    var forced = (qs.get("ldlang") || "").toLowerCase();
     if (forced) return forced.slice(0, 2);
-    if (CONFIG.lang.frPath.test(window.location.pathname)) return 'fr';
-    if (CONFIG.lang.frHost.test(window.location.hostname)) return 'fr';
+    if (CONFIG.lang.frPath.test(window.location.pathname)) return "fr";
+    if (CONFIG.lang.frHost.test(window.location.hostname)) return "fr";
     if (CONFIG.lang.useHtmlLang) {
-      var l = (document.documentElement.getAttribute('lang') || '').toLowerCase();
-      if (l.slice(0, 2) === 'fr') return 'fr';
+      var l = (
+        document.documentElement.getAttribute("lang") || ""
+      ).toLowerCase();
+      if (l.slice(0, 2) === "fr") return "fr";
     }
-    return 'en';
+    return "en";
   }
 
   function resolveVariant(country) {
-    if (country === 'US') return 'US';
-    if (country === 'CA') return resolveLang() === 'fr' ? 'CAFR' : 'CAEN';
+    if (country === "US") return "US";
+    if (country === "CA") return resolveLang() === "fr" ? "CAFR" : "CAEN";
     return null;
   }
 
@@ -1491,26 +1524,28 @@ html.ldg-scroll-lock{overflow:hidden !important}
     var art = ART[variant];
 
     if (CONFIG.loadFonts) {
-      var f = document.createElement('link');
-      f.rel = 'stylesheet';
-      f.href = 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700' +
-               '&family=Inter:wght@400;500;600;700&display=swap';
+      var f = document.createElement("link");
+      f.rel = "stylesheet";
+      f.href =
+        "https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700" +
+        "&family=Inter:wght@400;500;600;700&display=swap";
       document.head.appendChild(f);
     }
 
-    var style = document.createElement('style');
-    style.id = 'ldg-promo-css';
-    style.textContent = CSS[variant]
-      .replace('__PHOTO__', CONFIG.assetBase + art.photo)
-      .replace('__TAG__',   CONFIG.assetBase + art.tag)
-      + (CONFIG.extraCSS ? '\n\n/* CONFIG.extraCSS */\n' + CONFIG.extraCSS : '');
+    var style = document.createElement("style");
+    style.id = "ldg-promo-css";
+    style.textContent =
+      CSS[variant]
+        .replace("__PHOTO__", CONFIG.assetBase + art.photo)
+        .replace("__TAG__", CONFIG.assetBase + art.tag) +
+      (CONFIG.extraCSS ? "\n\n/* CONFIG.extraCSS */\n" + CONFIG.extraCSS : "");
     document.head.appendChild(style);
 
     function build(html) {
-      var host = document.createElement('div');
+      var host = document.createElement("div");
       host.innerHTML = html;
       var el = host.firstElementChild;
-      el.setAttribute('data-ldg-variant', variant);
+      el.setAttribute("data-ldg-variant", variant);
       return el;
     }
 
@@ -1518,7 +1553,7 @@ html.ldg-scroll-lock{overflow:hidden !important}
     var bar = null;
     if (CONFIG.showBar && !barDismissed()) {
       bar = build(BAR[variant]);
-      bar.setAttribute('data-ldg-bar', CONFIG.barMode);
+      bar.setAttribute("data-ldg-bar", CONFIG.barMode);
       document.body.insertBefore(bar, document.body.firstChild);
     }
 
@@ -1533,28 +1568,30 @@ html.ldg-scroll-lock{overflow:hidden !important}
 
     /* ---- countdown, shared by both ---- */
     var ticker = null;
-    var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+    var pad = function (n) {
+      return n < 10 ? "0" + n : String(n);
+    };
 
     function countdownRoots() {
       var out = [];
-      if (bar && !bar.classList.contains('ldg-hide')) out.push(bar);
-      if (modal && !modal.classList.contains('ldg-hide')) out.push(modal);
+      if (bar && !bar.classList.contains("ldg-hide")) out.push(bar);
+      if (modal && !modal.classList.contains("ldg-hide")) out.push(modal);
       return out;
     }
 
     function tick() {
       if (expired()) {
-        if (bar) bar.classList.add('ldg-hide');
+        if (bar) bar.classList.add("ldg-hide");
         if (modal) closeModal(true);
         stopTicker();
         return;
       }
       var s = Math.floor((END - Date.now()) / 1000);
       var vals = {
-        days:    pad(Math.floor(s / 86400)),
-        hours:   pad(Math.floor((s % 86400) / 3600)),
+        days: pad(Math.floor(s / 86400)),
+        hours: pad(Math.floor((s % 86400) / 3600)),
         minutes: pad(Math.floor((s % 3600) / 60)),
-        seconds: pad(s % 60)
+        seconds: pad(s % 60),
       };
       countdownRoots().forEach(function (root) {
         Object.keys(vals).forEach(function (u) {
@@ -1563,8 +1600,18 @@ html.ldg-scroll-lock{overflow:hidden !important}
         });
       });
     }
-    function startTicker() { if (!ticker) { tick(); ticker = setInterval(tick, 1000); } }
-    function stopTicker()  { if (ticker) { clearInterval(ticker); ticker = null; } }
+    function startTicker() {
+      if (!ticker) {
+        tick();
+        ticker = setInterval(tick, 1000);
+      }
+    }
+    function stopTicker() {
+      if (ticker) {
+        clearInterval(ticker);
+        ticker = null;
+      }
+    }
 
     if (bar) startTicker();
 
@@ -1576,11 +1623,12 @@ html.ldg-scroll-lock{overflow:hidden !important}
       if (!modal || modalOpen || popupClosed() || expired()) return;
       modalOpen = true;
       lastFocus = document.activeElement;
-      modal.classList.remove('ldg-hide');
+      modal.classList.remove("ldg-hide");
       startTicker();
       tick();
-      if (CONFIG.lockScroll) document.documentElement.classList.add('ldg-scroll-lock');
-      var first = modal.querySelector('.ldg-modal__close');
+      if (CONFIG.lockScroll)
+        document.documentElement.classList.add("ldg-scroll-lock");
+      var first = modal.querySelector(".ldg-modal__close");
       if (first) first.focus();
       disarm();
     }
@@ -1588,71 +1636,90 @@ html.ldg-scroll-lock{overflow:hidden !important}
     function closeModal(silent) {
       if (!modal) return;
       modalOpen = false;
-      modal.classList.add('ldg-hide');
-      if (CONFIG.lockScroll) document.documentElement.classList.remove('ldg-scroll-lock');
+      modal.classList.add("ldg-hide");
+      if (CONFIG.lockScroll)
+        document.documentElement.classList.remove("ldg-scroll-lock");
       if (!silent) {
         markPopupClosed();
         if (lastFocus && lastFocus.focus) lastFocus.focus();
       }
-      if (!bar || bar.classList.contains('ldg-hide')) stopTicker();
+      if (!bar || bar.classList.contains("ldg-hide")) stopTicker();
       disarm();
     }
 
     function closeBar() {
       if (!bar) return;
-      bar.classList.add('ldg-hide');
+      bar.classList.add("ldg-hide");
       markBarDismissed();
       if (!modalOpen) stopTicker();
     }
 
-    document.addEventListener('click', function (e) {
+    document.addEventListener("click", function (e) {
       if (!(e.target instanceof Element)) return;
-      var btn = e.target.closest('[data-ldg-dismiss]');
+      var btn = e.target.closest("[data-ldg-dismiss]");
       if (!btn) return;
-      if (btn.getAttribute('data-ldg-dismiss') === 'bar') closeBar();
+      if (btn.getAttribute("data-ldg-dismiss") === "bar") closeBar();
       else closeModal();
     });
 
     if (modal) {
-      modal.addEventListener('click', function (e) {
-        if (e.target === modal) closeModal();     // backdrop only
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) closeModal(); // backdrop only
       });
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modalOpen) closeModal();
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && modalOpen) closeModal();
       });
       // keep focus inside the dialog while it is open
-      modal.addEventListener('keydown', function (e) {
-        if (e.key !== 'Tab' || !modalOpen) return;
-        var items = modal.querySelectorAll('a[href], button:not([disabled])');
+      modal.addEventListener("keydown", function (e) {
+        if (e.key !== "Tab" || !modalOpen) return;
+        var items = modal.querySelectorAll("a[href], button:not([disabled])");
         if (!items.length) return;
-        var first = items[0], last = items[items.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        var first = items[0],
+          last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       });
     }
 
     /* ---- copy the coupon code ---- */
     var copyTimers = new WeakMap();
-    document.addEventListener('click', function (e) {
+    document.addEventListener("click", function (e) {
       if (!(e.target instanceof Element)) return;
-      var btn = e.target.closest('[data-ldg-copy]');
+      var btn = e.target.closest("[data-ldg-copy]");
       if (!btn) return;
-      var label = btn.querySelector('[data-ldg-copy-label]');
-      var code  = btn.getAttribute('data-ldg-copy');
-      var isFr  = variant === 'CAFR';
-      var okMsg = isFr ? 'Copie !' : 'Copied!';
-      var noMsg = isFr ? 'Echec' : 'Copy failed';
+      var label = btn.querySelector("[data-ldg-copy-label]");
+      var code = btn.getAttribute("data-ldg-copy");
+      var isFr = variant === "CAFR";
+      var okMsg = isFr ? "Copie !" : "Copied!";
+      var noMsg = isFr ? "Echec" : "Copy failed";
       var flash = function (msg) {
         if (!label) return;
         clearTimeout(copyTimers.get(btn));
         label.textContent = msg;
-        copyTimers.set(btn, setTimeout(function () { label.textContent = code; }, 1600));
+        copyTimers.set(
+          btn,
+          setTimeout(function () {
+            label.textContent = code;
+          }, 1600),
+        );
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(
-          function () { flash(okMsg); }, function () { flash(noMsg); }
+          function () {
+            flash(okMsg);
+          },
+          function () {
+            flash(noMsg);
+          },
         );
-      } else { flash(noMsg); }
+      } else {
+        flash(noMsg);
+      }
     });
 
     /* ===================================================================
@@ -1668,68 +1735,98 @@ html.ldg-scroll-lock{overflow:hidden !important}
     }
     function disarm() {
       armed = false;
-      listeners.forEach(function (l) { l[0].removeEventListener(l[1], l[2], l[3]); });
-      cleanups.forEach(function (fn) { fn(); });
+      listeners.forEach(function (l) {
+        l[0].removeEventListener(l[1], l[2], l[3]);
+      });
+      cleanups.forEach(function (fn) {
+        fn();
+      });
       listeners = [];
       cleanups = [];
     }
 
     function onMouseOut(e) {
       if (!armed) return;
-      if (e.clientY > 0) return;                    // not through the top edge
-      if (e.relatedTarget || e.toElement) return;   // moved into another element
+      if (e.clientY > 0) return; // not through the top edge
+      if (e.relatedTarget || e.toElement) return; // moved into another element
       openModal();
     }
 
     function armScrollUp() {
-      var lastY = window.scrollY, lastT = Date.now();
-      on(window, 'scroll', function () {
-        if (!armed) return;
-        var y = window.scrollY, t = Date.now(), dt = (t - lastT) / 1000;
-        if (dt > 0) {
-          var v = (lastY - y) / dt;                 // positive = scrolling up
-          if (v > CONFIG.scrollUpVelocity && y < 320) openModal();
-        }
-        lastY = y; lastT = t;
-      }, { passive: true });
+      var lastY = window.scrollY,
+        lastT = Date.now();
+      on(
+        window,
+        "scroll",
+        function () {
+          if (!armed) return;
+          var y = window.scrollY,
+            t = Date.now(),
+            dt = (t - lastT) / 1000;
+          if (dt > 0) {
+            var v = (lastY - y) / dt; // positive = scrolling up
+            if (v > CONFIG.scrollUpVelocity && y < 320) openModal();
+          }
+          lastY = y;
+          lastT = t;
+        },
+        { passive: true },
+      );
     }
 
     function arm() {
       if (!modal || popupClosed() || expired()) return;
       armed = true;
-      var touch = window.matchMedia('(hover: none)').matches;
+      var touch = window.matchMedia("(hover: none)").matches;
       if (!touch) {
-        on(document, 'mouseout', onMouseOut);
-      } else if (CONFIG.mobileTrigger === 'scrollUp') {
+        on(document, "mouseout", onMouseOut);
+      } else if (CONFIG.mobileTrigger === "scrollUp") {
         armScrollUp();
-      } else if (CONFIG.mobileTrigger === 'timeout') {
-        var to = setTimeout(function () { if (armed) openModal(); }, CONFIG.mobileTimeout);
-        on(window, 'pagehide', function () { clearTimeout(to); });
-        cleanups.push(function () { clearTimeout(to); });
+      } else if (CONFIG.mobileTrigger === "timeout") {
+        var to = setTimeout(function () {
+          if (armed) openModal();
+        }, CONFIG.mobileTimeout);
+        on(window, "pagehide", function () {
+          clearTimeout(to);
+        });
+        cleanups.push(function () {
+          clearTimeout(to);
+        });
       }
     }
 
-    if (modal && qs.get('ldexit') === '1') { openModal(); return; }
+    if (modal && qs.get("ldexit") === "1") {
+      openModal();
+      return;
+    }
     if (modal) setTimeout(arm, CONFIG.armDelay);
   }
 
   /* =====================================================================
      9 · Boot
      ===================================================================== */
-  if (qs.get('ldreset') === '1') {
+  if (qs.get("ldreset") === "1") {
     memPopupClosed = false;
-    try { window.sessionStorage.removeItem(CONFIG.popupSessionKey); } catch (e) {}
+    try {
+      window.sessionStorage.removeItem(CONFIG.popupSessionKey);
+    } catch (e) {}
     lsDel(CONFIG.barKey);
     lsDel(CONFIG.geoKey);
   }
 
   if (expired()) return;
-  if (document.getElementById('ldgPromoBar') || document.getElementById('ldgExitModal')) return;
+  if (
+    document.getElementById("ldgPromoBar") ||
+    document.getElementById("ldgExitModal")
+  )
+    return;
 
   resolveCountry().then(function (country) {
     if (CONFIG.countries.indexOf(country) === -1) return;
     var variant = resolveVariant(country);
     if (!variant) return;
-    ready(function () { mount(variant); });
+    ready(function () {
+      mount(variant);
+    });
   });
 })();
