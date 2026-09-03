@@ -993,6 +993,23 @@ __LDG_ROOT__{
 :where(#ldgModal svg, #ldgBar svg){display:block;flex:0 0 auto}
 #ldgModal .ldg-modal__fine a,#ldgModal .ldg-timer a,#ldgBar .ldg-bar__msg a{text-decoration:underline}
 
+/* --- text colour, pinned down ------------------------------------------
+   The design set gives .ldg-modal__box  color:var(--ldg-white)  and lets the
+   headline, sub-head and fine print inherit it. That is fine until the custom
+   property fails to resolve for any reason — an unresolved var() makes the
+   declaration invalid at computed-value time, and 'color' then falls back to
+   INHERITED, which inside this sandbox means the host's initial black. The
+   result is a black headline on a dark photo: invisible. Same story for the
+   bar's ink on yellow. So state the colours outright, with literal fallbacks,
+   and stop depending on inheritance for the one thing that must be readable. */
+#ldgModal .ldg-modal__box{color:var(--ldg-white,#FFFFFF)}
+#ldgModal .ldg-modal__h{color:var(--ldg-white,#FFFFFF)}
+#ldgModal .ldg-modal__sub{color:rgba(255,255,255,.84)}
+#ldgModal .ldg-timer__lab,#ldgModal .ldg-chip{color:rgba(255,255,255,.72)}
+#ldgModal .ldg-count__num{color:var(--ldg-yellow,#FFF65B)}
+#ldgBar .ldg-bar,#ldgBar .ldg-bar__msg,#ldgBar .ldg-bar__cta{color:var(--ldg-ink,#141313)}
+#ldgBar .ldg-bar__tag{color:var(--ldg-yellow,#FFF65B)}
+
 /* The bar is injected as a fixed strip, so it carries its own edge. */
 .ldg-bar{box-shadow:0 1px 0 rgba(20,19,19,.09),0 6px 18px rgba(20,19,19,.06)}
 
@@ -1532,9 +1549,9 @@ __LDG_ROOT__{
        document: the elements that end up under a top bar are the ones pinned
        to the top of the viewport, and those are always either a header-ish
        element or a direct child of <body>. */
-    var PINNED_HINTS = 'header,nav,[role="banner"],.w-nav,[class*="navbar"],' +
-                       '[class*="nav-bar"],[class*="topbar"],[class*="top-bar"],' +
-                       '[class*="header"],[class*="sticky"],[data-sticky]';
+    var PINNED_HINTS = 'header,nav,[role="banner"],[class*="nav"],[class*="head"],' +
+                       '[class*="topbar"],[class*="top-bar"],[class*="sticky"],' +
+                       '[data-sticky]';
 
     var pinned = [];   // fixed / sticky and anchored to the top → animate `top`
     var flowed = [];   // opted in by attribute, in normal flow  → `margin-top`
@@ -1563,13 +1580,17 @@ __LDG_ROOT__{
         if (cs.display === 'none' || cs.visibility === 'hidden') continue;
 
         var rect = el.getBoundingClientRect();
+        var pin  = (cs.position === 'fixed' || cs.position === 'sticky');
         rows.push({
           el:      el,
-          pin:     (cs.position === 'fixed' || cs.position === 'sticky'),
+          pin:     pin,
           sticky:  cs.position === 'sticky',
           // 'top:auto' reads as NaN, which is how bottom-anchored things
           // (a cookie bar, a chat bubble) exclude themselves.
-          top:     baseFor(el, 'top'),
+          // Only read a base `top` off something that is actually pinned: a
+          // static element's `top` is meaningless, and caching it now would
+          // poison the base if the element is pinned later on.
+          top:     pin ? baseFor(el, 'top') : NaN,
           rectTop: rect.top,
           h:       rect.height,
           optIn:   Array.prototype.indexOf.call(explicit, el) !== -1
@@ -1682,6 +1703,7 @@ __LDG_ROOT__{
       // instead of shoving whatever the visitor is reading down the screen.
       if (!B.hideOnScroll && scrollY() > 0) window.scrollBy(0, h);
 
+      startResync();
       clock.start();
     }
 
@@ -1690,6 +1712,7 @@ __LDG_ROOT__{
       if (!visible) { if (permanent) teardown(); return; }
       visible = false;
       clearTimeout(settle);
+      stopResync();
 
       host.style.transform = 'translateY(-100%)';
       host.style.opacity   = '0';
@@ -1709,6 +1732,8 @@ __LDG_ROOT__{
     function teardown() {
       clock.stop();
       clearTimeout(settle);
+      stopResync();
+      window.removeEventListener('load', resync);
       restoreAll();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
@@ -1725,6 +1750,36 @@ __LDG_ROOT__{
       if (!visible) return;
       applyOffset(Math.round(host.getBoundingClientRect().height), 0);
     }
+
+    /* ---- re-scan as the page settles -------------------------------------
+       The page is not finished when we mount. A Webflow navbar is very often
+       static markup that the site's own script turns into position:fixed a
+       beat later — and our offsets are applied once, at show(). If an element
+       becomes pinned after that moment, nothing ever moves it and it lands on
+       top of the bar: the page content is pushed down correctly, the nav is
+       not. So re-scan at a few settle points instead of trusting the first
+       measurement. Corrections are instant, not animated — a nav that has
+       only just appeared should not slide.
+
+       scanTargets() is a bounded getComputedStyle pass over header-ish
+       elements and <body>'s children, so this costs microseconds, and it
+       stops as soon as the bar is hidden or torn down. */
+    var RESYNC_AT = [120, 400, 1000, 2500, 5000];
+    var resyncTimers = [];
+    function resync() {
+      if (!visible) return;
+      scanTargets();
+      remeasure();
+    }
+    function startResync() {
+      stopResync();
+      RESYNC_AT.forEach(function (ms) { resyncTimers.push(setTimeout(resync, ms)); });
+    }
+    function stopResync() {
+      resyncTimers.forEach(function (t) { clearTimeout(t); });
+      resyncTimers = [];
+    }
+    window.addEventListener('load', resync);
     var ro = null;
     if (window.ResizeObserver) {
       ro = new ResizeObserver(remeasure);
@@ -1737,8 +1792,17 @@ __LDG_ROOT__{
     }
     window.addEventListener('resize', onResize);
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(remeasure).catch(function () {});
+      document.fonts.ready.then(resync).catch(function () {});
     }
+
+    /* requestAnimationFrame never fires in a background tab, so a page opened
+       in one would mount the bar and leave it hidden until something else
+       woke it. Catch the moment the tab is looked at. */
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      if (visible) { resync(); return; }
+      if (!gone && (!B.hideOnScroll || scrollY() <= B.showAtPx)) show();
+    });
 
     /* ---- scroll: retract on the way down, return at the very top ---- */
     function onScroll() {
