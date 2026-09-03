@@ -46,6 +46,10 @@
  *   The URLs must be ABSOLUTE — they end up in a CSS url(), which resolves
  *   against the page's address, not this script's. See the block for why.
  *
+ * LINKS
+ *   CONFIG.cta holds the CTA destination per variant — the bar's button and
+ *   both halves of the popup's button. Change it there, not in the markup.
+ *
  * COPY / DATES
  *   The visible date strings ("11:59 PM PT on September 8, 2026" and the
  *   French equivalent) are plain text in the MARKUP block. CONFIG.deadline
@@ -105,6 +109,21 @@
                tag:   'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf48c79e270c46cf359b_tag-ca.avif' },
       CA_FR: { photo: 'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf49dfd6b716b05aec7f_photo-ca.avif',
                tag:   'https://cdn.prod.website-files.com/6a0183d56ceb2deec6fd2e8c/6a99cf48c79e270c46cf359b_tag-ca.avif' }
+    },
+
+    /* --- CTA destination --------------------------------------------------
+       Where every "Claim 50% off" / "J'en profite" / "Profiter de 50 % de
+       rabais" button goes — the bar's CTA and both halves of the popup's
+       button (the pill and the arrow are two separate <a>s that swap places
+       on hover, so they must point at the same place).
+
+       One entry per variant, filled into the markup at mount time, so a link
+       change is one line here rather than nine hrefs across three templates.
+       Absolute URLs, same as CONFIG.art. */
+    cta: {
+      US:    'https://app.lodgify.com/signup/calendar-experience/en/',
+      CA_EN: 'https://app.lodgify.com/signup/calendar-experience/en/',
+      CA_FR: 'https://app.lodgify.com/signup/calendar-experience/fr/'
     },
 
     // --- geo ---
@@ -204,7 +223,7 @@
       <span class="ldg-code">LD2026</span>. <a href="https://use.lodgify.com/hubfs/Promos/New_Customers_Promo_TC.pdf" target="_blank" rel="noopener">T&amp;Cs apply</a>
     </p>
 
-    <a class="ldg-bar__cta" href="https://www.lodgify.com/labor-day-promo/">
+    <a class="ldg-bar__cta" href="__LDG_CTA__">
       <span>Claim 50% off</span>
       <span class="ldg-bar__arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
@@ -238,7 +257,7 @@
       <span class="ldg-code">LD2026</span>. <a href="https://use.lodgify.com/hubfs/Promos/New_Customers_Promo_TC.pdf" target="_blank" rel="noopener">T&amp;Cs apply</a>
     </p>
 
-    <a class="ldg-bar__cta" href="https://www.lodgify.com/labour-day-promo/">
+    <a class="ldg-bar__cta" href="__LDG_CTA__">
       <span>Claim 50% off</span>
       <span class="ldg-bar__arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
@@ -272,7 +291,7 @@
       <span class="ldg-code">LD2026</span>. <a href="https://use.lodgify.com/hubfs/Promos/New_Customers_Promo_TC.pdf" target="_blank" rel="noopener">Conditions</a>
     </p>
 
-    <a class="ldg-bar__cta" href="https://www.lodgify.com/labour-day-promo/">
+    <a class="ldg-bar__cta" href="__LDG_CTA__">
       <span>J'en profite</span>
       <span class="ldg-bar__arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
@@ -328,8 +347,8 @@
 
       <div class="ldg-modal__row">
         <div class="ldg-swap">
-          <a class="ldg-btn" href="https://www.lodgify.com/labor-day-promo/">Claim 50% off</a>
-          <a class="ldg-round" href="https://www.lodgify.com/labor-day-promo/" aria-label="Claim 50% off">
+          <a class="ldg-btn" href="__LDG_CTA__">Claim 50% off</a>
+          <a class="ldg-round" href="__LDG_CTA__" aria-label="Claim 50% off">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
           </a>
         </div>
@@ -414,8 +433,8 @@
 
       <div class="ldg-modal__row">
         <div class="ldg-swap">
-          <a class="ldg-btn" href="https://www.lodgify.com/labour-day-promo/">Claim 50% off</a>
-          <a class="ldg-round" href="https://www.lodgify.com/labour-day-promo/" aria-label="Claim 50% off">
+          <a class="ldg-btn" href="__LDG_CTA__">Claim 50% off</a>
+          <a class="ldg-round" href="__LDG_CTA__" aria-label="Claim 50% off">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
           </a>
         </div>
@@ -494,8 +513,8 @@
 
       <div class="ldg-modal__row">
         <div class="ldg-swap">
-          <a class="ldg-btn" href="https://www.lodgify.com/labour-day-promo/">Profiter de 50&nbsp;% de rabais</a>
-          <a class="ldg-round" href="https://www.lodgify.com/labour-day-promo/" aria-label="Profiter de 50 % de rabais">
+          <a class="ldg-btn" href="__LDG_CTA__">Profiter de 50&nbsp;% de rabais</a>
+          <a class="ldg-round" href="__LDG_CTA__" aria-label="Profiter de 50 % de rabais">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
           </a>
         </div>
@@ -1159,19 +1178,39 @@ __LDG_ROOT__{
       .replace('__LDG_TAG__',   function () { return art.tag   || ''; });
   }
 
+  /* The markup with this variant's CTA destination filled in. Function
+     replacement for the same reason as cssFor(): a literal one would treat
+     $& and friends inside a URL as substitution patterns. */
+  function markupFor(markup, variant) {
+    var url = CONFIG.cta[variant] || '';
+    return markup.replace(/__LDG_CTA__/g, function () { return url; });
+  }
+
   /* A bare filename in CONFIG.art resolves against the PAGE, not this script,
      so it would 404 on every page but the site root. Say so once, loudly, in
      the console rather than leaving someone to wonder why the popup is grey. */
   function checkArt(variant) {
     var art = CONFIG.art[variant] || {};
+    var warn = function (what, v) {
+      if (window.console && console.warn) {
+        console.warn('[ldg] ' + what + ' is "' + v + '" — that resolves against the ' +
+          'page, not this script. Use an absolute URL.');
+      }
+    };
     ['photo', 'tag'].forEach(function (k) {
       var v = art[k];
       if (!v || /^(https?:)?\/\//.test(v) || v.indexOf('data:') === 0) return;
-      if (window.console && console.warn) {
-        console.warn('[ldg] CONFIG.art.' + variant + '.' + k + ' is "' + v +
-          '" — that resolves against the page, not this script. Use an absolute URL.');
-      }
+      warn('CONFIG.art.' + variant + '.' + k, v);
     });
+    var cta = CONFIG.cta[variant];
+    if (!cta) {
+      if (window.console && console.warn) {
+        console.warn('[ldg] CONFIG.cta.' + variant + ' is empty — the CTA buttons ' +
+          'will link nowhere.');
+      }
+    } else if (!/^(https?:)?\/\//.test(cta) && cta.charAt(0) !== '/') {
+      warn('CONFIG.cta.' + variant, cta);
+    }
   }
 
   /* The handful of strings the script writes at runtime rather than reading
@@ -1286,7 +1325,7 @@ __LDG_ROOT__{
     // Isolated shadow tree — see sandbox() in section 5. The only thing this
     // popup touches on the host page is the scroll lock below, and that is an
     // inline style restored byte-exact on close.
-    var box   = sandbox('ldg-exit-intent', MODAL[variant], '', cssFor(variant));
+    var box   = sandbox('ldg-exit-intent', markupFor(MODAL[variant], variant), '', cssFor(variant));
     var root  = box.root;
     var modal = box.el;
     var copy  = COPY[variant];
@@ -1496,7 +1535,7 @@ __LDG_ROOT__{
 
     checkArt(variant);
 
-    var box  = sandbox('ldg-promo-bar', BAR[variant],
+    var box  = sandbox('ldg-promo-bar', markupFor(BAR[variant], variant),
       'position:fixed;top:0;left:0;right:0;display:none;z-index:' + B.zIndex + ';' +
       'transform:translateY(-100%);opacity:0;will-change:transform,opacity',
       cssFor(variant));
