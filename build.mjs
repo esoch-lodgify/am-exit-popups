@@ -44,9 +44,11 @@ const res = await minify(src, {
   mangle: { toplevel: false },
   format: {
     comments: false,
-    preamble: '/*! Lodgify LD2026 top bar + exit popup | build ' +
-              new Date().toISOString().slice(0, 10) +
-              ' | source: github.com/esoch-lodgify/am-exit-popups */'
+    // No build date in the banner on purpose: the build is deterministic, so
+    // rebuilding unchanged source gives a byte-identical file and therefore a
+    // stable SRI hash. Only a real source change moves the hash.
+    preamble: '/*! Lodgify LD2026 top bar + exit popup | ' +
+              'source: github.com/esoch-lodgify/am-exit-popups */'
   }
 });
 if (res.error) throw res.error;
