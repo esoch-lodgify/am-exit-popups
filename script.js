@@ -153,6 +153,15 @@
       dismissKey: 'ldg_ld2026_modal_closed',
       dismissHours: 72,        // the design set's "dismissDays: 3"
 
+      /* Must be ABOVE CONFIG.bar.zIndex. The popup's own .ldg-modal carries
+         z-index:9999, but that number is useless on its own: the shadow host
+         is `all:initial`, so it is static with z-index:auto and creates no
+         stacking context, which leaves 9999 competing directly against the
+         bar's 2147482000 in the document's own stacking order — and losing.
+         Setting position + z-index here makes the host a stacking context of
+         its own, so the whole popup, backdrop included, paints over the bar. */
+      zIndex: 2147483000,
+
       // exit-intent tuning, used by 'exit' and 'both'
       armDelay: 3000,          // don't arm the trigger for the first N ms
       mobileTrigger: 'scrollUp', // 'scrollUp' | 'timeout' | 'none'
@@ -183,7 +192,9 @@
       hideAtPx: 10,
       showAtPx: 0,
 
-      zIndex: 2147482000,          // just under the exit popup
+      // Above any site chrome, and deliberately below CONFIG.popup.zIndex so
+      // the exit popup covers the bar when both are on screen at once.
+      zIndex: 2147482000,
 
       /* PUSH-DOWN
          autoPush finds the elements that would otherwise end up underneath
@@ -1325,7 +1336,13 @@ __LDG_ROOT__{
     // Isolated shadow tree — see sandbox() in section 5. The only thing this
     // popup touches on the host page is the scroll lock below, and that is an
     // inline style restored byte-exact on close.
-    var box   = sandbox('ldg-exit-intent', markupFor(MODAL[variant], variant), '', cssFor(variant));
+    // A 0x0 fixed host: out of flow, so it costs no layout and blocks no
+    // clicks while the popup is hidden, but it owns a stacking context that
+    // sits above the bar. The .ldg-modal inside is itself position:fixed and
+    // resolves against the viewport, not against this box.
+    var box   = sandbox('ldg-exit-intent', markupFor(MODAL[variant], variant),
+      'position:fixed;top:0;left:0;width:0;height:0;z-index:' + P.zIndex,
+      cssFor(variant));
     var root  = box.root;
     var modal = box.el;
     var copy  = COPY[variant];
